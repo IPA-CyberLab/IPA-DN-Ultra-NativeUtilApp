@@ -84,7 +84,7 @@
 #include <errno.h>
 #include <Mayaqua/Mayaqua.h>
 #include <Cedar/Cedar.h>
-#include "ThinTest.h"
+#include "NativeUtilApp.h"
 #include "Vars/VarsActivePatch.h"
 
 static DS *dss = NULL;
