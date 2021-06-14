@@ -228,6 +228,8 @@ void udpbench_test(UINT num, char** arg)
 	return;
 #endif	// UNIX_LINUX
 
+	UINT num_cpu = GetNumberOfCpu();
+
 	Zero(target_hostname, sizeof(target_hostname));
 
 	if (num >= 1)
@@ -319,7 +321,14 @@ void udpbench_test(UINT num, char** arg)
 		Print("\n");
 	}
 
+	if (num_cpu == 0) num_cpu = 1;
+	if (num_cpu >= 64) num_cpu = 64;
+
+	Print("Number of CPUs: %u\n", num_cpu);
+
 	num_ports = target_port_end - target_port_start + 1;
+
+	UINT index = 0;
 
 	for (i = 0;i < num_ports;i++)
 	{
@@ -340,9 +349,11 @@ void udpbench_test(UINT num, char** arg)
 		st->size = size;
 		st->rand_flag = rand_flag;
 
-		Print("Thread %u: [%r]:%u\n", i, &st->ip, st->port);
-
-		NewThread(udpbench_thread, st);
+		for (UINT j = 0;j < num_cpu;j++)
+		{
+			Print("Thread %u: [%r]:%u\n", index++, &st->ip, st->port);
+			NewThread(udpbench_thread, st);
+		}
 	}
 
 	SleepThread(INFINITE);

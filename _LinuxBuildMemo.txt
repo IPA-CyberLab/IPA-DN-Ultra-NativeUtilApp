@@ -10,3 +10,7 @@ git clone  --recursive git@github.com:IPA-CyberLab/IPA-DN-Ultra-NativeUtilApp.gi
 (cd ~/IPA-DN-Ultra-NativeUtilApp/ && (cd $(git rev-parse --show-toplevel) && git pull origin main && git submodule update --init --recursive)) && cd ~/IPA-DN-Ultra-NativeUtilApp/src/ && make -j 10 && bin/NativeUtilApp
 
 
+### UDP ベンチマークテストの実行 (NW に負荷をかけるため、注意して実行すること)
+(cd ~/IPA-DN-Ultra-NativeUtilApp/ && (cd $(git rev-parse --show-toplevel) && git pull origin main && git submodule update --init --recursive)) && cd ~/IPA-DN-Ultra-NativeUtilApp/src/ && make -j 10 && bin/NativeUtilApp udpbench 10.21.1.2 5454 32
+
+
