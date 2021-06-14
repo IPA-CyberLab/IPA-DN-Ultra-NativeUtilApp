@@ -87,173 +87,269 @@
 #include "NativeUtilApp.h"
 #include "Vars/VarsActivePatch.h"
 
-static DS *dss = NULL;
-
-void test(UINT num, char **arg)
+typedef struct UDPBST
 {
-}
+	IP ip;
+	UINT port;
+	UINT size;
+	bool rand_flag;
+} UDPBST;
 
-void gg(UINT num, char **arg)
+#if	UNIX_LINUX
+
+struct mmsghdr2 {
+	struct msghdr msg_hdr;
+	unsigned int  msg_len;
+};
+
+#endif	// UNIX_LINUX
+
+void udpbench_thread(THREAD* thread, void* param)
 {
-	WIDE *w = WideGateStart();
+#if	UNIX_LINUX
+	bool is_ipv6;
+	UDPBST* st;
+	SOCK* s;
+	UCHAR* buf;
+	UINT size;
+	UINT i;
+	int socket;
+	struct sockaddr_in addr;
+	struct sockaddr_in6 addr6;
+	struct iovec msg_iov;
+	struct msghdr msg_header;
+	UINT count = 1024;
+	struct mmsghdr2* msgvec = NULL;
+	volatile static UINT dst_rand_addr = 0;
 
-	GetLine(NULL, 0);
+	Zero(&msg_iov, sizeof(msg_iov));
+	Zero(&msg_header, sizeof(msg_header));
 
-	WideGateStop(w);
-}
+	st = (UDPBST*)param;
 
-void ds(UINT num, char **arg)
-{
-	DS *ds = NewDs(true, false);
+	is_ipv6 = IsIP6(&st->ip);
 
-	GetLine(NULL, 0);
+	s = NewUDPEx(0, is_ipv6);
 
-	FreeDs(ds);
-}
+	size = st->size;
+	buf = Malloc(size);
 
-void dg(UINT num, char **arg)
-{
-#ifdef	OS_WIN32
-	DGExec();
-#endif  // OS_WIN32
-}
+	Rand(buf, size);
 
-void du(UINT num, char **arg)
-{
-#ifdef	OS_WIN32
-	DUExec();
-#endif  // OS_WIN32
-}
-
-void di(UINT num, char **arg)
-{
-#ifdef	OS_WIN32
-	SWExec();
-#endif  // OS_WIN32
-}
-
-void stat_test(UINT num, char** arg)
-{
-	STATMAN* stat;
-	STATMAN_CONFIG cfg = CLEAN;
-
-	StrCpy(cfg.PostUrl, 0, "https://127.0.0.1/stat/");
-	
-	stat = NewStatMan(&cfg);
-
+	if (is_ipv6 == false)
 	{
-		PACK* p = NewPack();
-
-		PackAddStr(p, "str1", "Hello2");
-
-		PackAddUniStr(p, "str2", L"World2");
-
-		PackAddInt64(p, "int1_total", 5);
-
-		StatManAddReport(stat, p);
-
-		FreePack(p);
-	}
-
-	GetLine(NULL, 0);
-
-	FreeStatMan(stat);
-}
-
-void ping_test(UINT num, char **arg)
-{
-#ifdef	OS_WIN32
-	char *pcid;
-	UINT count;
-	UINT ret;
-	WIDE *wide;
-	SOCKIO *sockio;
-	if (num == 0)
-	{
-		Print("Usage: ping pcid [num]\n");
-		return;
-	}
-
-	pcid = arg[0];
-
-	count = 0x7FFFFFFF;
-	if (num >= 2)
-	{
-		count = ToInt(arg[1]);
-	}
-
-	Print("Connecting...\n");
-
-	wide = WideClientStart("DESK", _GETLANG());
-
-	ret = WideClientConnect(wide, pcid, 0, 0, &sockio, 0, false);
-
-	if (ret != ERR_NO_ERROR)
-	{
-		Print("%S\n", _E(ret));
+		Zero(&addr, sizeof(addr));
+		addr.sin_family = AF_INET;
+		addr.sin_port = htons((USHORT)st->port);
+		IPToInAddr(&addr.sin_addr, &st->ip);
 	}
 	else
 	{
-		UINT i, num;
-		double total = 0;
-		PACK *p;
-
-		p = NewPack();
-		PackAddBool(p, "pingmode", true);
-
-		SockIoSendPack(sockio, p);
-		FreePack(p);
-
-		num = 0;
-
-		for (i = 0;i < count;i++)
-		{
-			UINT64 tick1, tick2, now, diff;
-			double diff_double;
-
-			tick1 = MsGetHiResCounter();
-
-			if (SockIoSendAll(sockio, &tick1, sizeof(UINT64)) == false)
-			{
-				Print("Disconnected.\n");
-				break;
-			}
-
-			if (SockIoRecvAll(sockio, &tick2, sizeof(UINT64)) == false)
-			{
-				Print("Disconnected.\n");
-				break;
-			}
-
-			now = MsGetHiResCounter();
-
-			if (tick1 != tick2)
-			{
-				Print("Ping Protocol Error !!\n");
-				break;
-			}
-
-			diff = now - tick2;
-			diff_double = MsGetHiResTimeSpan(diff);
-
-			if (count == 1 || i != 0)
-			{
-				total += diff_double;
-				num++;
-			}
-
-			Print("Ping %u: %f sec.\n", num, diff_double);
-
-			SleepThread(1000);
-		}
-
-		SockIoDisconnect(sockio);
-
-		Print("Aver: %f sec (Count: %u)\n", (double)((double)total / (double)num), num);
+		Zero(&addr6, sizeof(addr6));
+		addr6.sin6_family = AF_INET6;
+		addr6.sin6_port = htons((USHORT)st->port);
+		IPToInAddr6(&addr6.sin6_addr, &st->ip);
 	}
 
-	WideClientStop(wide);
-#endif  // OS_WIN32
+	socket = s->socket;
+
+	msgvec = ZeroMalloc(sizeof(struct mmsghdr2) * count);
+	for (i = 0;i < count;i++)
+	{
+		struct msghdr* msg_header;
+		struct iovec* msg_iov;
+
+		msg_iov = ZeroMalloc(sizeof(struct iovec));
+		msg_iov->iov_base = Clone(buf, size);
+		msg_iov->iov_len = size;
+
+		msg_header = &msgvec[i].msg_hdr;
+
+		if (is_ipv6 == false)
+		{
+			msg_header->msg_name = (struct sockaddr*)Clone(&addr, sizeof(struct sockaddr_in));
+			msg_header->msg_namelen = sizeof(addr);
+		}
+		else
+		{
+			msg_header->msg_name = (struct sockaddr*)Clone(&addr6, sizeof(struct sockaddr_in6));
+			msg_header->msg_namelen = sizeof(addr6);
+		}
+
+		msg_header->msg_iov = msg_iov;
+		msg_header->msg_iovlen = 1;
+		msg_header->msg_control = NULL;
+		msg_header->msg_controllen = 0;
+		msg_header->msg_flags = 0;
+	}
+
+	InitAsyncSocket(s);
+
+	while (true)
+	{
+		if (st->rand_flag && is_ipv6 == false)
+		{
+			for (i = 0;i < count;i++)
+			{
+				UINT tmp = dst_rand_addr++;
+				struct msghdr* msg_header;
+				msg_header = &msgvec[i].msg_hdr;
+				struct sockaddr_in* addr = (struct sockaddr_in*)msg_header->msg_name;
+
+				(*((UINT*)(&addr->sin_addr))) = htonl(tmp);
+			}
+		}
+
+		if (false)
+		{
+			sendto(socket, buf, size, 0, is_ipv6 ? (struct sockaddr*)&addr6 : (struct sockaddr*)&addr, is_ipv6 ? sizeof(addr6) : sizeof(addr));
+		}
+		else
+		{
+			int ret = sendmmsg(socket, msgvec, count, 0);
+		}
+	}
+#endif	// UNIX_LINUX
+}
+
+void udpbench_test(UINT num, char** arg)
+{
+	char target_hostname[MAX_SIZE];
+	UINT target_port_start = 0;
+	UINT target_port_end = 0;
+	UINT size = 0;
+	IP ip;
+	UINT i, num_ports;
+	bool rand_flag = false;
+	LIST* ip_list = NULL;
+
+#ifndef	UNIX_LINUX
+	Print("Not supported on non-Linux OS.\n");
+	return;
+#endif	// UNIX_LINUX
+
+	Zero(target_hostname, sizeof(target_hostname));
+
+	if (num >= 1)
+	{
+		StrCpy(target_hostname, sizeof(target_hostname), arg[0]);
+	}
+
+	if (num >= 2)
+	{
+		char* ports = arg[1];
+		TOKEN_LIST* token = ParseToken(ports, ",:");
+		target_port_start = target_port_end = ToInt(arg[1]);
+
+		if (token->NumTokens >= 2)
+		{
+			target_port_start = ToInt(token->Token[0]);
+			target_port_end = ToInt(token->Token[1]);
+
+			target_port_end = MAX(target_port_end, target_port_start);
+		}
+
+		FreeToken(token);
+	}
+
+	if (num >= 3)
+	{
+		size = ToInt(arg[2]);
+	}
+
+	if (num >= 4)
+	{
+		rand_flag = ToBool(arg[3]);
+	}
+
+	if (num >= 5)
+	{
+		UINT i;
+		for (i = 4;i < num;i++)
+		{
+			char* ips = arg[i];
+			IP ip;
+
+			if (GetIP(&ip, ips) || GetIPEx(&ip, ips, true))
+			{
+				if (ip_list == NULL)
+				{
+					ip_list = NewList(NULL);
+				}
+
+				Add(ip_list, Clone(&ip, sizeof(IP)));
+			}
+		}
+	}
+
+	if (IsEmptyStr(target_hostname) || target_port_start == 0 || size == 0)
+	{
+		Print("Usage: udpbench <hostname> <port>|<port_start:port_end> <packet_size> [dest_ip_rand_flag]\n");
+		return;
+	}
+
+	if (GetIP(&ip, target_hostname) == false)
+	{
+		if (GetIPEx(&ip, target_hostname, true) == false)
+		{
+			Print("GetIP for %s failed.\n", target_hostname);
+			return;
+		}
+	}
+
+	if (ip_list != NULL)
+	{
+		Add(ip_list, Clone(&ip, sizeof(IP)));
+	}
+
+	if (ip_list == NULL)
+	{
+		Print("Target = %r\n", &ip);
+	}
+	else
+	{
+		UINT i;
+		Print("Targets List = ");
+		for (i = 0;i < LIST_NUM(ip_list);i++)
+		{
+			IP* ip = LIST_DATA(ip_list, i);
+
+			Print("%r ", ip);
+		}
+		Print("\n");
+	}
+
+	num_ports = target_port_end - target_port_start + 1;
+
+	for (i = 0;i < num_ports;i++)
+	{
+		UDPBST* st;
+
+		st = ZeroMalloc(sizeof(UDPBST));
+
+		if (ip_list == NULL)
+		{
+			Copy(&st->ip, &ip, sizeof(IP));
+		}
+		else
+		{
+			Copy(&st->ip, LIST_DATA(ip_list, i % LIST_NUM(ip_list)), sizeof(IP));
+		}
+
+		st->port = target_port_start + i;
+		st->size = size;
+		st->rand_flag = rand_flag;
+
+		Print("Thread %u: [%r]:%u\n", i, &st->ip, st->port);
+
+		NewThread(udpbench_thread, st);
+	}
+
+	SleepThread(INFINITE);
+}
+
+void test(UINT num, char **arg)
+{
 }
 
 // テスト関数一覧定義
@@ -268,13 +364,7 @@ typedef struct TEST_LIST
 TEST_LIST test_list[] =
 {
 	{"test", test},
-	{"gg", gg},
-	{"ds", ds},
-	{"dg", dg},
-	{"du", du},
-	{"di", di},
-	{"st", stat_test},
-	{"ping", ping_test},
+	{"udpbench", udpbench_test},
 };
 
 // テスト関数
