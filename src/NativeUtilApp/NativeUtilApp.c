@@ -106,7 +106,7 @@ struct mmsghdr2 {
 
 void udpbench_thread(THREAD* thread, void* param)
 {
-#if	UNIX_LINUX
+#ifdef	UNIX_LINUX
 	bool is_ipv6;
 	UDPBST* st;
 	SOCK* s;
