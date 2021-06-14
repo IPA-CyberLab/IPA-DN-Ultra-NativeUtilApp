@@ -83,7 +83,7 @@ tmp/unix/$(DEBUG_OR_RELEASE)/NativeUtilApp/%.o: NativeUtilApp/%.c $(NativeUtilAp
 # Targets and build rules
 all:	build
 
-build:	bin/NativeUtilApp bin/thingate
+build:	bin/NativeUtilApp
 
 clean:
 	-rm -fr tmp/unix/debug/ tmp/unix/release/

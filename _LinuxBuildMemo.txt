@@ -7,6 +7,6 @@ git clone  --recursive git@github.com:IPA-CyberLab/IPA-DN-Ultra-NativeUtilApp.gi
 
 
 ### ビルドおよび実行
-
+(cd ~/IPA-DN-Ultra-NativeUtilApp/ && (cd $(git rev-parse --show-toplevel) && git pull origin main && git submodule update --init --recursive)) && cd ~/IPA-DN-Ultra-NativeUtilApp/src/ && make -j 10
 
 
