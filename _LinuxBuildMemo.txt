@@ -1,0 +1,12 @@
+﻿### 初回
+cd ~/
+git clone  --recursive git@github.com:IPA-CyberLab/IPA-DN-Ultra-NativeUtilApp.git
+
+### 2 回目以降
+(cd ~/IPA-DN-Ultra-NativeUtilApp/ && (cd $(git rev-parse --show-toplevel) && git pull origin main && git submodule update --init --recursive))
+
+
+### ビルドおよび実行
+
+
+

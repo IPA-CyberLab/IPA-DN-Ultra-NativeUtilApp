@@ -1,4 +1,4 @@
-﻿// Thin Telework System Source Code
+﻿// IPA-DN-Ultra-NativeUtilApp Source Code
 // 
 // License: The Apache License, Version 2.0
 // https://www.apache.org/licenses/LICENSE-2.0
