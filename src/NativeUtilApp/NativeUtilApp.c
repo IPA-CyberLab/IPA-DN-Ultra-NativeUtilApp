@@ -95,7 +95,7 @@ typedef struct UDPBST
 	bool rand_flag;
 } UDPBST;
 
-#if	UNIX_LINUX
+#ifdef	UNIX_LINUX
 
 struct mmsghdr2 {
 	struct msghdr msg_hdr;
