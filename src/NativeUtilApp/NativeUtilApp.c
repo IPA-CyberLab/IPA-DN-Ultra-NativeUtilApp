@@ -121,6 +121,9 @@ void udpbench_thread(THREAD* thread, void* param)
 	UINT count = 1024;
 	struct mmsghdr2* msgvec = NULL;
 	volatile static UINT dst_rand_addr = 0;
+	char* dns_packet_hex = "0008010000010000000000000476706e3109736f66746574686572036e65740000010001";
+
+	BUF* dns_packet_buf = StrToBin(dns_packet_hex);
 
 	Zero(&msg_iov, sizeof(msg_iov));
 	Zero(&msg_header, sizeof(msg_header));
@@ -135,6 +138,11 @@ void udpbench_thread(THREAD* thread, void* param)
 	buf = Malloc(size);
 
 	Rand(buf, size);
+
+	if (size == dns_packet_buf->Size)
+	{
+		Copy(buf, dns_packet_buf->Buf, dns_packet_buf->Size);
+	}
 
 	if (is_ipv6 == false)
 	{
@@ -287,6 +295,7 @@ void udpbench_test(UINT num, char** arg)
 	if (IsEmptyStr(target_hostname) || target_port_start == 0 || size == 0)
 	{
 		Print("Usage: udpbench <hostname> <port>|<port_start:port_end> <packet_size> [dest_ip_rand_flag]\n");
+		Print("       If packet_size = 36 then send dns query sample packet\n");
 		return;
 	}
 
