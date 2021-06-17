@@ -15,7 +15,7 @@ git clone  --recursive git@github.com:IPA-CyberLab/IPA-DN-Ultra-NativeUtilApp.gi
 
 ~/IPA-DN-Ultra-NativeUtilApp/src/bin/NativeUtilApp udpbench 10.21.1.2 5454 32
 
-~/IPA-DN-Ultra-NativeUtilApp/src/bin/NativeUtilApp udpbench dn-vpnvault2.sec.softether.co.jp 5454 32
+~/IPA-DN-Ultra-NativeUtilApp/src/bin/NativeUtilApp udpbench dn-vpnvault2.sec.softether.co.jp 5454 36
 
 
 
