@@ -368,6 +368,45 @@ void udpbench_test(UINT num, char** arg)
 	SleepThread(INFINITE);
 }
 
+void udprand_test(UINT num, char** arg)
+{
+	if (num < 2)
+	{
+		Print("Usage: udprand <dest_ip> <dest_port>\n");
+		Print("Warning: Please use this command with great caution.\n");
+		Print("         This command may affect network or host computer.\n\n");
+		return;
+	}
+
+	char* dest_host = arg[0];
+	UINT dest_port = ToInt(arg[1]);
+
+	IP dest_ip = CLEAN;
+	if (GetIP(&dest_ip, dest_host) == false)
+	{
+		Print("Failed to get the IP address of '%s'.\n", dest_host);
+		return;
+	}
+
+	SOCK* s = NewUDP(0);
+
+	Print("Target host: %r:%u\n", &dest_ip, dest_port);
+	Print("Local port: %u\n", s->LocalPort);
+
+	for (UINT i = 0;;i++)
+	{
+		UCHAR rand[64] = CLEAN;
+		Rand(rand, sizeof(rand));
+
+		SendTo(s, &dest_ip, dest_port, rand, sizeof(rand));
+
+		if ((i % 3000) == 0)
+		{
+			//SleepThread(10);
+		}
+	}
+}
+
 void test(UINT num, char **arg)
 {
 }
@@ -385,6 +424,7 @@ TEST_LIST test_list[] =
 {
 	{"test", test},
 	{"udpbench", udpbench_test},
+	{"udprand", udprand_test},
 };
 
 // テスト関数
