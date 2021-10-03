@@ -104,6 +104,166 @@ struct mmsghdr2 {
 
 #endif	// UNIX_LINUX
 
+typedef struct SSL_SERVER_BENCH
+{
+	X* testcert_01_chain1;
+	X* testcert_01_chain2;
+	X* testcert_03_host;
+	K* testcert_03_host_key;
+
+	X* widecert_01_controller;
+	K* widecert_01_controller_key;
+
+	CERTS_AND_KEY* certs_and_key_for_sni;
+
+	LIST* SockThreadList;
+
+	UINT mode;
+} SSL_SERVER_BENCH;
+
+void sslserverbench_accepted(SSL_SERVER_BENCH* svr, SOCK* s)
+{
+	SetTimeout(s, CONNECTING_TIMEOUT);
+
+	CERTS_AND_KEY* ssl_additional_certs_array[2] = CLEAN;
+	UINT num_certs_array_items = 0;
+
+	CERTS_AND_KEY* web_socket_certs = NULL;
+
+	if (svr->mode != 0)
+	{
+		web_socket_certs = svr->certs_and_key_for_sni;
+		AddRef(web_socket_certs->Ref);
+
+		web_socket_certs->DetermineUseCallback = WtgDetermineWebSocketSslCertUseCallback;
+		ssl_additional_certs_array[num_certs_array_items] = web_socket_certs;
+		num_certs_array_items++;
+	}
+
+	if (StartSSLEx2(s, svr->widecert_01_controller, svr->widecert_01_controller_key, true, 0, NULL, ssl_additional_certs_array, num_certs_array_items, NULL))
+	{
+		Print("StartSSLEx2 OK\n");
+	}
+	else
+	{
+		Print("StartSSLEx2 Error\n");
+	}
+
+	ReleaseCertsAndKey(web_socket_certs);
+}
+
+void sslserverbench_thread(THREAD* thread, void* param)
+{
+	TCP_ACCEPTED_PARAM* accepted_param;
+	LISTENER* r;
+	SOCK* s;
+	SSL_SERVER_BENCH* svr;
+	// 引数チェック
+	if (thread == NULL || param == NULL)
+	{
+		return;
+	}
+
+	accepted_param = (TCP_ACCEPTED_PARAM*)param;
+	r = accepted_param->r;
+	s = accepted_param->s;
+	AddRef(r->ref);
+	AddRef(s->ref);
+	svr = (SSL_SERVER_BENCH*)r->ThreadParam;
+
+	AddSockThread(svr->SockThreadList, s, thread);
+
+	NoticeThreadInit(thread);
+	AcceptInitEx2(s, true, false);
+
+	sslserverbench_accepted(svr, s);
+
+	DelSockThread(svr->SockThreadList, s);
+
+	ReleaseSock(s);
+	ReleaseListener(r);
+}
+
+void sslserverbench_test(UINT num, char** arg)
+{
+	if (num < 1)
+	{
+		Print("Usage: sslserverbench <TCP_Port> [mode=0]\n");
+		Print("Modes: 0: Simple\n");
+		Print("       1: SNI aware\n");
+		return;
+	}
+
+	CEDAR* cedar;
+
+	char* port_str = arg[0];
+	UINT port = ToInt(port_str);
+
+	SSL_SERVER_BENCH* svr = ZeroMalloc(sizeof(SSL_SERVER_BENCH));
+
+	if (num >= 2)
+	{
+		svr->mode = ToInt(arg[1]);
+	}
+
+	svr->testcert_01_chain1 = FileToX("|TestCert_01_Chain1.cer");
+	svr->testcert_01_chain2 = FileToX("|TestCert_02_Chain2.cer");
+	svr->testcert_03_host = FileToX("|TestCert_03_Host.cer");
+	svr->testcert_03_host_key = FileToK("|TestCert_03_Host.key", true, NULL);
+	svr->widecert_01_controller = FileToX("|WideCert_01_Controller.cer");
+	svr->widecert_01_controller_key = FileToK("|WideCert_01_Controller.key", true, NULL);
+
+	if (svr->testcert_01_chain1 == NULL || svr->testcert_01_chain2 == NULL || svr->testcert_03_host == NULL ||
+		svr->testcert_03_host_key == NULL || svr->widecert_01_controller == NULL || svr->widecert_01_controller_key == NULL)
+	{
+		Print("Load cert failed.\n");
+		exit(1);
+	}
+
+	LIST* chain_list = NewList(NULL);
+	Add(chain_list, svr->testcert_03_host);
+	Add(chain_list, svr->testcert_01_chain1);
+	Add(chain_list, svr->testcert_01_chain2);
+
+	svr->certs_and_key_for_sni = NewCertsAndKeyFromObjects(chain_list, svr->testcert_03_host_key);
+
+	svr->SockThreadList = NewSockThreadList();
+
+	cedar = NewCedar(NULL, NULL);
+
+	LISTENER* listener = NewListenerEx(cedar, LISTENER_TCP, port, sslserverbench_thread, svr);
+
+	Print("Enter to exit>");
+	GetLine(NULL, 0);
+
+	Print("Exiting...\n");
+
+	StopAllListener(cedar);
+	StopListener(listener);
+	ReleaseListener(listener);
+
+	FreeSockThreadList(svr->SockThreadList);
+
+	ReleaseCedar(cedar);
+
+	ReleaseCertsAndKey(svr->certs_and_key_for_sni);
+
+	FreeX(svr->testcert_01_chain1);
+	FreeX(svr->testcert_01_chain2);
+	FreeX(svr->testcert_03_host);
+	FreeK(svr->testcert_03_host_key);
+	FreeX(svr->widecert_01_controller);
+	FreeK(svr->widecert_01_controller_key);
+
+	ReleaseList(chain_list);
+
+	Free(svr);
+}
+
+void sslclientbench_test(UINT num, char** arg)
+{
+}
+
 void udpbench_thread(THREAD* thread, void* param)
 {
 #ifdef	UNIX_LINUX
@@ -425,6 +585,12 @@ TEST_LIST test_list[] =
 	{"test", test},
 	{"udpbench", udpbench_test},
 	{"udprand", udprand_test},
+
+	{"sslserverbench", sslserverbench_test},
+	{"ssb", sslserverbench_test},
+
+	{"sslclientbench", sslclientbench_test},
+	{"scb", sslclientbench_test},
 };
 
 // テスト関数
