@@ -118,8 +118,25 @@ typedef struct SSL_SERVER_BENCH
 
 	LIST* SockThreadList;
 
+	COUNTER* CurrentConnections;
+	COUNTER* CurrentSslInProgress;
+	COUNTER* TotalSslOk;
+	COUNTER* TotalSslError;
+
 	UINT mode;
+
+	bool Halt;
+	EVENT* HaltEvent;
 } SSL_SERVER_BENCH;
+
+typedef struct SSL_SERVER_BENCH_STAT
+{
+	UINT CurrentConnections;
+	UINT CurrentSslInProgress;
+	UINT TotalSslOk;
+	UINT TotalSslError;
+	UINT64 Tick;
+} SSL_SERVER_BENCH_STAT;
 
 void sslserverbench_accepted(SSL_SERVER_BENCH* svr, SOCK* s)
 {
@@ -140,16 +157,80 @@ void sslserverbench_accepted(SSL_SERVER_BENCH* svr, SOCK* s)
 		num_certs_array_items++;
 	}
 
+	Inc(svr->CurrentSslInProgress);
 	if (StartSSLEx2(s, svr->widecert_01_controller, svr->widecert_01_controller_key, true, 0, NULL, ssl_additional_certs_array, num_certs_array_items, NULL))
 	{
-		Print("StartSSLEx2 OK\n");
+		Dec(svr->CurrentSslInProgress);
+		Inc(svr->TotalSslOk);
+
+		while (true)
+		{
+			UCHAR data[128] = CLEAN;
+
+			if (RecvAll(s, data, sizeof(data), true) == false)
+			{
+				break;
+			}
+
+			if (SendAll(s, data, sizeof(data), true) == false)
+			{
+				break;
+			}
+		}
 	}
 	else
 	{
-		Print("StartSSLEx2 Error\n");
+		Dec(svr->CurrentSslInProgress);
+		Inc(svr->TotalSslError);
 	}
 
 	ReleaseCertsAndKey(web_socket_certs);
+}
+
+void sslserverbench_print_stat_thread(THREAD* thread, void* param)
+{
+	SSL_SERVER_BENCH* svr = (SSL_SERVER_BENCH*)param;
+
+	SSL_SERVER_BENCH_STAT last = CLEAN;
+
+	last.Tick = Tick64();
+
+	UINT num = 0;
+
+	while (svr->Halt == false)
+	{
+		num++;
+
+		Wait(svr->HaltEvent, 1000);
+		if (svr->Halt) break;
+
+		SSL_SERVER_BENCH_STAT current = CLEAN;
+
+		current.CurrentConnections = Count(svr->CurrentConnections);
+		current.CurrentSslInProgress = Count(svr->CurrentSslInProgress);
+		current.TotalSslOk = Count(svr->TotalSslOk);
+		current.TotalSslError = Count(svr->TotalSslError);
+		current.Tick = Tick64();
+
+		if (current.Tick > last.Tick)
+		{
+			SSL_SERVER_BENCH_STAT diff = CLEAN;
+
+			diff.CurrentConnections = current.CurrentConnections - last.CurrentConnections;
+			diff.CurrentSslInProgress = current.CurrentSslInProgress - last.CurrentSslInProgress;
+			diff.TotalSslOk = current.TotalSslOk - last.TotalSslOk;
+			diff.TotalSslError = current.TotalSslError - last.TotalSslError;
+			diff.Tick = current.Tick - last.Tick;
+
+			double total_ssl_ok_avr = (double)diff.TotalSslOk * 1000.0 / (double)diff.Tick;
+			double total_ssl_err_svr = (double)diff.TotalSslError * 1000.0 / (double)diff.Tick;
+
+			Print("Report #%u: SSL_OK/sec: %.1f, SSL_ERR/sec: %.1f, TCP: %u, SSLNego: %u\n",
+				num, total_ssl_ok_avr, total_ssl_err_svr, current.CurrentConnections, current.CurrentSslInProgress);
+
+			last = current;
+		}
+	}
 }
 
 void sslserverbench_thread(THREAD* thread, void* param)
@@ -176,7 +257,11 @@ void sslserverbench_thread(THREAD* thread, void* param)
 	NoticeThreadInit(thread);
 	AcceptInitEx2(s, true, false);
 
+	Inc(svr->CurrentConnections);
+
 	sslserverbench_accepted(svr, s);
+
+	Dec(svr->CurrentConnections);
 
 	DelSockThread(svr->SockThreadList, s);
 
@@ -206,6 +291,8 @@ void sslserverbench_test(UINT num, char** arg)
 		svr->mode = ToInt(arg[1]);
 	}
 
+	svr->HaltEvent = NewEvent();
+
 	svr->testcert_01_chain1 = FileToX("|TestCert_01_Chain1.cer");
 	svr->testcert_01_chain2 = FileToX("|TestCert_02_Chain2.cer");
 	svr->testcert_03_host = FileToX("|TestCert_03_Host.cer");
@@ -213,12 +300,19 @@ void sslserverbench_test(UINT num, char** arg)
 	svr->widecert_01_controller = FileToX("|WideCert_01_Controller.cer");
 	svr->widecert_01_controller_key = FileToK("|WideCert_01_Controller.key", true, NULL);
 
+	svr->CurrentConnections = NewCounter();
+	svr->CurrentSslInProgress = NewCounter();
+	svr->TotalSslError = NewCounter();
+	svr->TotalSslOk = NewCounter();
+
 	if (svr->testcert_01_chain1 == NULL || svr->testcert_01_chain2 == NULL || svr->testcert_03_host == NULL ||
 		svr->testcert_03_host_key == NULL || svr->widecert_01_controller == NULL || svr->widecert_01_controller_key == NULL)
 	{
 		Print("Load cert failed.\n");
 		exit(1);
 	}
+
+	THREAD* stat_thread = NewThread(sslserverbench_print_stat_thread, svr);
 
 	LIST* chain_list = NewList(NULL);
 	Add(chain_list, svr->testcert_03_host);
@@ -238,6 +332,9 @@ void sslserverbench_test(UINT num, char** arg)
 
 	Print("Exiting...\n");
 
+	svr->Halt = true;
+	Set(svr->HaltEvent);
+
 	StopAllListener(cedar);
 	StopListener(listener);
 	ReleaseListener(listener);
@@ -256,6 +353,18 @@ void sslserverbench_test(UINT num, char** arg)
 	FreeK(svr->widecert_01_controller_key);
 
 	ReleaseList(chain_list);
+
+	svr->Halt = true;
+	Set(svr->HaltEvent);
+	WaitThread(stat_thread, INFINITE);
+	ReleaseThread(stat_thread);
+
+	DeleteCounter(svr->CurrentConnections);
+	DeleteCounter(svr->CurrentSslInProgress);
+	DeleteCounter(svr->TotalSslError);
+	DeleteCounter(svr->TotalSslOk);
+
+	ReleaseEvent(svr->HaltEvent);
 
 	Free(svr);
 }
