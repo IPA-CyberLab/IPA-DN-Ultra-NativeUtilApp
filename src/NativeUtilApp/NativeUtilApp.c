@@ -295,6 +295,8 @@ void sslserverbench_thread(THREAD* thread, void* param)
 
 void sslserverbench_test(UINT num, char** arg)
 {
+	OSRestorePriority();
+
 	if (num < 1)
 	{
 		Print("Usage: sslserverbench <TCP_Port> [mode=0]\n");
@@ -470,6 +472,8 @@ void sslclientbench_thread(THREAD* thread, void* param)
 
 void sslclientbench_test(UINT num, char** arg)
 {
+	OSRestorePriority();
+
 	UINT num_threads = 256;
 
 	sslclientbench_total_ok = 0;
