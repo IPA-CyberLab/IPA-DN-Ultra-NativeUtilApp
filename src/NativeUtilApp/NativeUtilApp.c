@@ -191,12 +191,12 @@ void sslserverbench_accepted(SSL_SERVER_BENCH* svr, SOCK* s)
 		{
 			UCHAR data[128] = CLEAN;
 
-			if (RecvAll(s, data, sizeof(data), true) == false)
+			if (SendAll(s, data, sizeof(data), true) == false)
 			{
 				break;
 			}
 
-			if (SendAll(s, data, sizeof(data), true) == false)
+			if (RecvAll(s, data, sizeof(data), true) == false)
 			{
 				break;
 			}
@@ -447,6 +447,10 @@ void sslclientbench_do_main(SSL_CLIENT_BENCH_CTX *c)
 					Print("Thread %u: SSL OK.\n", c->ThreadId, host, port);
 
 					sslclientbench_total_ok++;
+
+					UCHAR data[128] = CLEAN;
+
+					RecvAll(s, data, sizeof(data), true);
 				}
 
 				Disconnect(s);
