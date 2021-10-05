@@ -87,6 +87,8 @@
 #include "NativeUtilApp.h"
 #include "Vars/VarsActivePatch.h"
 
+extern bool g_debug;
+
 typedef struct UDPBST
 {
 	IP ip;
@@ -103,6 +105,28 @@ struct mmsghdr2 {
 };
 
 #endif	// UNIX_LINUX
+
+
+
+char* Dev_GetFirstFilledStrFromBuf(BUF* buf)
+{
+	if (buf == NULL)
+	{
+		return CopyStr("");
+	}
+
+	UINT size = buf->Size + 8;
+	char* tmp = ZeroMalloc(size);
+	Copy(tmp, buf->Buf, buf->Size);
+
+	char* ret = GetFirstFilledStrFromStr(tmp);
+
+	Free(tmp);
+
+	return ret;
+}
+
+
 
 typedef struct SSL_SERVER_BENCH
 {
@@ -279,6 +303,8 @@ void sslserverbench_test(UINT num, char** arg)
 		return;
 	}
 
+	g_debug = false;
+
 	CEDAR* cedar;
 
 	char* port_str = arg[0];
@@ -325,6 +351,8 @@ void sslserverbench_test(UINT num, char** arg)
 
 	cedar = NewCedar(NULL, NULL);
 
+	DisableDosProtect();
+
 	LISTENER* listener = NewListenerEx(cedar, LISTENER_TCP, port, sslserverbench_thread, svr);
 
 	Print("Enter to exit>");
@@ -369,8 +397,147 @@ void sslserverbench_test(UINT num, char** arg)
 	Free(svr);
 }
 
+char sslclientbench_target_str[MAX_SIZE] = CLEAN;
+
+typedef struct SSL_CLIENT_BENCH_CTX
+{
+	UINT ThreadId;
+} SSL_CLIENT_BENCH_CTX;
+
+UINT sslclientbench_total_ok = 0;
+UINT sslclientbench_total_tcp_error = 0;
+UINT sslclientbench_total_ssl_error = 0;
+
+void sslclientbench_do_main(SSL_CLIENT_BENCH_CTX *c)
+{
+	CHAR target[MAX_PATH] = CLEAN;
+
+	StrCpy(target, sizeof(target), sslclientbench_target_str);
+
+	if (IsFilledStr(target))
+	{
+		char* host = NULL;
+		UINT port = 0;
+
+		if (ParseHostPort(target, &host, &port, 443))
+		{
+			SOCK* s = Connect(host, port);
+			if (s == NULL)
+			{
+				Print("Thread %u: TCP Connect failed to %s:%u\n", c->ThreadId, host, port);
+
+				sslclientbench_total_tcp_error++;
+			}
+			else
+			{
+				Print("Thread %u: TCP OK.\n", c->ThreadId, host, port);
+
+				SetTimeout(s, CONNECTING_TIMEOUT);
+
+				if (StartSSLEx(s, NULL, NULL, true, CONNECTING_TIMEOUT, target) == false)
+				{
+					Print("Thread %u: StartSSLEx Error to %s:%u\n", c->ThreadId, host, port);
+
+					sslclientbench_total_ssl_error++;
+				}
+				else
+				{
+					Print("Thread %u: SSL OK.\n", c->ThreadId, host, port);
+
+					sslclientbench_total_ok++;
+				}
+
+				Disconnect(s);
+				ReleaseSock(s);
+			}
+
+			Free(host);
+		}
+	}
+}
+
+void sslclientbench_thread(THREAD* thread, void* param)
+{
+	SSL_CLIENT_BENCH_CTX* c = (SSL_CLIENT_BENCH_CTX*)param;
+
+	while (true)
+	{
+		SleepThread(Rand32() % 1000);
+
+		sslclientbench_do_main(c);
+	}
+}
+
 void sslclientbench_test(UINT num, char** arg)
 {
+	UINT num_threads = 256;
+
+	sslclientbench_total_ok = 0;
+	sslclientbench_total_tcp_error = 0;
+	sslclientbench_total_ssl_error = 0;
+
+	if (num < 1)
+	{
+		Print("Usage: sslclientbench <DEST_SERVER>[:PORT=443] or <TARGET_TXT_URL>\n");
+		return;
+	}
+
+	g_debug = false;
+
+	char* host_or_url = arg[0];
+	bool is_url = false;
+
+	if (StartWith(host_or_url, "http://") || StartWith(host_or_url, "https://"))
+	{
+		is_url = true;
+	}
+	else
+	{
+		StrCpy(sslclientbench_target_str, sizeof(sslclientbench_target_str), host_or_url);
+	}
+
+	UINT i;
+	for (i = 0;i < num_threads;i++)
+	{
+		SSL_CLIENT_BENCH_CTX* c = ZeroMalloc(sizeof(SSL_CLIENT_BENCH_CTX));
+		c->ThreadId = i + 1;
+		THREAD* t = NewThread(sslclientbench_thread, c);
+	}
+
+	while (true)
+	{
+		UINT err = ERR_NO_ERROR;
+
+		if (is_url)
+		{
+			BUF* body = HttpDownload(host_or_url, NULL, NULL, NULL, 5 * 1000, 5 * 1000, &err, false, NULL, 0, NULL, 65536);
+
+			if (body == NULL)
+			{
+				Print("Failed download from %s\n", host_or_url);
+			}
+			else
+			{
+				char* recv_url = Dev_GetFirstFilledStrFromBuf(body);
+
+				if (StrCmp(recv_url, sslclientbench_target_str) != 0)
+				{
+					StrCpy(sslclientbench_target_str, sizeof(sslclientbench_target_str), recv_url);
+					Print("Target URL Changed: %s\n", sslclientbench_target_str);
+				}
+
+				Free(recv_url);
+				FreeBuf(body);
+			}
+		}
+
+		Print("Total OK: %u, TCP Error: %u, SSL Error: %u\n",
+			sslclientbench_total_ok,
+			sslclientbench_total_tcp_error,
+			sslclientbench_total_ssl_error);
+
+		SleepThread(Rand32() % 1000);
+	}
 }
 
 void udpbench_thread(THREAD* thread, void* param)
