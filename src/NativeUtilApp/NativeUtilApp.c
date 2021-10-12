@@ -174,7 +174,7 @@ void sslserverbench_accepted(SSL_SERVER_BENCH* svr, SOCK* s)
 	if (svr->mode != 0)
 	{
 		web_socket_certs = svr->certs_and_key_for_sni;
-		//AddRef(web_socket_certs->Ref);
+		AddRef(web_socket_certs->Ref);
 
 		web_socket_certs->DetermineUseCallback = WtgDetermineWebSocketSslCertUseCallback;
 		ssl_additional_certs_array[num_certs_array_items] = web_socket_certs;
@@ -208,7 +208,7 @@ void sslserverbench_accepted(SSL_SERVER_BENCH* svr, SOCK* s)
 		Inc(svr->TotalSslError);
 	}
 
-	//ReleaseCertsAndKey(web_socket_certs);
+	ReleaseCertsAndKey(web_socket_certs);
 }
 
 void sslserverbench_print_stat_thread(THREAD* thread, void* param)
@@ -373,7 +373,7 @@ void sslserverbench_test(UINT num, char** arg)
 
 	ReleaseCedar(cedar);
 
-	//ReleaseCertsAndKey(svr->certs_and_key_for_sni);
+	ReleaseCertsAndKey(svr->certs_and_key_for_sni);
 
 	FreeX(svr->testcert_01_chain1);
 	FreeX(svr->testcert_01_chain2);
