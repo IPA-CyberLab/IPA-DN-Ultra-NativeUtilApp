@@ -305,7 +305,7 @@ void sslserverbench_test(UINT num, char** arg)
 		return;
 	}
 
-	//g_debug = false;
+	g_debug = false;
 
 	CEDAR* cedar;
 
@@ -490,7 +490,7 @@ void sslclientbench_test(UINT num, char** arg)
 		return;
 	}
 
-	//g_debug = false;
+	g_debug = false;
 
 	char* host_or_url = arg[0];
 	bool is_url = false;
