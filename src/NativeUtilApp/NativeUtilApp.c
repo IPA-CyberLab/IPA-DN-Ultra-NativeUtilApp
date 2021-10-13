@@ -182,7 +182,7 @@ void sslserverbench_accepted(SSL_SERVER_BENCH* svr, SOCK* s)
 	}
 
 	Inc(svr->CurrentSslInProgress);
-	if (StartSSLEx2(s, svr->widecert_01_controller, svr->widecert_01_controller_key, true, 0, NULL, ssl_additional_certs_array, num_certs_array_items, NULL))
+	if (StartSSLEx2(s, svr->widecert_01_controller, svr->widecert_01_controller_key, true, 0, NULL, ssl_additional_certs_array, num_certs_array_items, NULL, false))
 	{
 		Dec(svr->CurrentSslInProgress);
 		Inc(svr->TotalSslOk);
@@ -347,7 +347,7 @@ void sslserverbench_test(UINT num, char** arg)
 	Add(chain_list, svr->testcert_01_chain1);
 	Add(chain_list, svr->testcert_01_chain2);
 
-	svr->certs_and_key_for_sni = NewCertsAndKeyFromObjects(chain_list, svr->testcert_03_host_key);
+	svr->certs_and_key_for_sni = NewCertsAndKeyFromObjects(chain_list, svr->testcert_03_host_key, false);
 
 	svr->SockThreadList = NewSockThreadList();
 
