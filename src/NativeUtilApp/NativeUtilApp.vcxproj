@@ -19,7 +19,7 @@
     </ProjectConfiguration>
   </ItemGroup>
   <PropertyGroup Label="Globals">
-    <VCProjectVersion>16.0</VCProjectVersion>
+    <VCProjectVersion>17.0</VCProjectVersion>
     <Keyword>Win32Proj</Keyword>
     <ProjectGuid>{5E95B752-C42E-467A-B9D4-8BE6EAEF443B}</ProjectGuid>
     <RootNamespace>NativeUtilApp</RootNamespace>
