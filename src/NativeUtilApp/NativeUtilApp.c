@@ -886,6 +886,7 @@ void udpbench_test(UINT num, char** arg)
 			}
 
 			udpbench_num_packets_per_wait = new_value;
+			Print("new_value = %u\n", new_value);
 		}
 
 		last_tick = now;
