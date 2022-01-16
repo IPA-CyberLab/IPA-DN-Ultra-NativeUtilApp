@@ -551,6 +551,7 @@ void sslclientbench_test(UINT num, char** arg)
 
 volatile UINT udpbench_target_pps = 0;
 volatile UINT64 udpbench_total_packets = 0;
+volatile UINT udpbench_num_packets_per_wait = 0;
 
 void udpbench_thread(THREAD* thread, void* param)
 {
@@ -641,6 +642,8 @@ void udpbench_thread(THREAD* thread, void* param)
 
 	InitAsyncSocket(s);
 
+	UINT64 this_thread_loop_counts = 0;
+
 	while (true)
 	{
 		if (st->rand_flag && is_ipv6 == false)
@@ -667,6 +670,16 @@ void udpbench_thread(THREAD* thread, void* param)
 			int ret = sendmmsg(socket, msgvec, count, 0);
 
 			udpbench_total_packets += (UINT64)count;
+		}
+
+		this_thread_loop_counts++;
+
+		if (udpbench_num_packets_per_wait != 0)
+		{
+			if ((this_thread_loop_counts % (UINT64)udpbench_num_packets_per_wait) == 0)
+			{
+				SleepThread(10);
+			}
 		}
 	}
 #endif	// UNIX_LINUX
@@ -747,7 +760,7 @@ void udpbench_test(UINT num, char** arg)
 
 	if (num >= 6)
 	{
-		udpbench_target_pps = ToInt(arg[5]);
+		udpbench_target_pps = ToInt(arg[5]) * 1000;
 	}
 	else
 	{
@@ -758,7 +771,7 @@ void udpbench_test(UINT num, char** arg)
 
 	if (IsEmptyStr(target_hostname) || target_port_start == 0 || size == 0)
 	{
-		Print("Usage: udpbench <hostname> <port>|<port_start:port_end> <packet_size> [dest_ip_rand_flag] [dest_ip_list] [pps]\n");
+		Print("Usage: udpbench <hostname> <port>|<port_start:port_end> <packet_size> [dest_ip_rand_flag] [dest_ip_list] [kpps]\n");
 		Print("       If packet_size = 36 then send dns query sample packet\n");
 		return;
 	}
@@ -832,6 +845,11 @@ void udpbench_test(UINT num, char** arg)
 	UINT64 last_tick = TickHighres64();
 	UINT64 last_pcount = udpbench_total_packets;
 
+	if (udpbench_target_pps != 0)
+	{
+		udpbench_num_packets_per_wait = 32;
+	}
+
 	while (true)
 	{
 		SleepThread(1000);
@@ -841,7 +859,23 @@ void udpbench_test(UINT num, char** arg)
 		UINT64 interval = now - last_tick;
 
 		UINT64 current_pps = (current_pcount - last_pcount) * 1000ULL / interval;
-		Print("Current PPS: %I64u\n", current_pps);
+		Print("Current PPS: %I64u kpps\n", current_pps / 1000);
+		if (udpbench_num_packets_per_wait != 0)
+		{
+			UINT new_value = udpbench_num_packets_per_wait;
+
+			if (current_pps > udpbench_target_pps)
+			{
+				new_value /= 2;
+				if (new_value == 0) new_value = 1;
+			}
+			else
+			{
+				new_value *= 2;
+			}
+
+			udpbench_num_packets_per_wait = new_value;
+		}
 	}
 }
 
