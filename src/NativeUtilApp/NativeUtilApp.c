@@ -656,14 +656,21 @@ void udpbench_thread(THREAD* thread, void* param)
 		if (false)
 		{
 			sendto(socket, buf, size, 0, is_ipv6 ? (struct sockaddr*)&addr6 : (struct sockaddr*)&addr, is_ipv6 ? sizeof(addr6) : sizeof(addr));
+
+			udpbench_total_packets++;
 		}
 		else
 		{
 			int ret = sendmmsg(socket, msgvec, count, 0);
+
+			udpbench_total_packets += (UINT64)count;
 		}
 	}
 #endif	// UNIX_LINUX
 }
+
+volatile UINT udpbench_target_pps = 0;
+volatile UINT64 udpbench_total_packets = 0;
 
 void udpbench_test(UINT num, char** arg)
 {
@@ -737,9 +744,20 @@ void udpbench_test(UINT num, char** arg)
 		}
 	}
 
+	if (num >= 6)
+	{
+		udpbench_target_pps = ToInt(arg[5]);
+	}
+	else
+	{
+		udpbench_target_pps = 0;
+	}
+
+	udpbench_total_packets = 0;
+
 	if (IsEmptyStr(target_hostname) || target_port_start == 0 || size == 0)
 	{
-		Print("Usage: udpbench <hostname> <port>|<port_start:port_end> <packet_size> [dest_ip_rand_flag]\n");
+		Print("Usage: udpbench <hostname> <port>|<port_start:port_end> <packet_size> [dest_ip_rand_flag] [dest_ip_list] [pps]\n");
 		Print("       If packet_size = 36 then send dns query sample packet\n");
 		return;
 	}
@@ -810,7 +828,20 @@ void udpbench_test(UINT num, char** arg)
 		}
 	}
 
-	SleepThread(INFINITE);
+	UINT64 last_tick = TickHighres64();
+	UINT64 last_pcount = udpbench_total_packets;
+
+	while (true)
+	{
+		SleepThread(1000);
+
+		UINT64 current_pcount = udpbench_total_packets;
+		UINT64 now = TickHighres64();
+		UINT64 interval = now - last_tick;
+
+		UINT64 current_pps = (current_pcount - last_pcount) * 1000ULL / interval;
+		Print("Current PPS: %I64u\n", current_pps);
+	}
 }
 
 void udprand_test(UINT num, char** arg)
