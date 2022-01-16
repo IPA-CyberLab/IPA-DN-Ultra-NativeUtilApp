@@ -884,7 +884,7 @@ void udpbench_test(UINT num, char** arg)
 			}
 			else
 			{
-				new_value *= 2;
+				new_value++;
 			}
 
 			udpbench_num_packets_per_wait = new_value;
@@ -893,7 +893,7 @@ void udpbench_test(UINT num, char** arg)
 
 			if (current_pps > udpbench_target_pps)
 			{
-				new_value2 += 10;
+				new_value2 += 20;
 			}
 			else
 			{
@@ -907,7 +907,7 @@ void udpbench_test(UINT num, char** arg)
 
 			udpbench_sleep_interval = new_value2;
 
-			Print("new_value = %u   new_value2 = %u\n", new_value, new_value2);
+			//Print("new_value = %u   new_value2 = %u\n", new_value, new_value2);
 		}
 
 		last_tick = now;
