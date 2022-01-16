@@ -746,21 +746,31 @@ void udpbench_test(UINT num, char** arg)
 			char* ips = arg[i];
 			IP ip;
 
-			if (GetIP(&ip, ips) || GetIPEx(&ip, ips, true))
+			if (InStr(ips, ".") || InStr(ips, ":"))
 			{
-				if (ip_list == NULL)
+				if (GetIP(&ip, ips) || GetIPEx(&ip, ips, true))
 				{
-					ip_list = NewList(NULL);
-				}
+					if (ip_list == NULL)
+					{
+						ip_list = NewList(NULL);
+					}
 
-				Add(ip_list, Clone(&ip, sizeof(IP)));
+					Add(ip_list, Clone(&ip, sizeof(IP)));
+				}
+			}
+			else
+			{
+				break;
 			}
 		}
 	}
 
 	if (num >= 6)
 	{
-		udpbench_target_pps = ToInt(arg[5]) * 1000;
+		if (EndWith(arg[5], "kpps"))
+		{
+			udpbench_target_pps = ToInt(arg[5]) * 1000;
+		}
 	}
 	else
 	{
@@ -771,7 +781,7 @@ void udpbench_test(UINT num, char** arg)
 
 	if (IsEmptyStr(target_hostname) || target_port_start == 0 || size == 0)
 	{
-		Print("Usage: udpbench <hostname> <port>|<port_start:port_end> <packet_size> [dest_ip_rand_flag] [dest_ip_list] [kpps]\n");
+		Print("Usage: udpbench <hostname> <port>|<port_start:port_end> <packet_size> [dest_ip_rand_flag] [dest_ip_list] [123kpps]\n");
 		Print("       If packet_size = 36 then send dns query sample packet\n");
 		return;
 	}
@@ -811,6 +821,7 @@ void udpbench_test(UINT num, char** arg)
 	if (num_cpu >= 64) num_cpu = 64;
 
 	Print("Number of CPUs: %u\n", num_cpu);
+	Print("Target PPS: %u\n", udpbench_target_pps);
 
 	num_ports = target_port_end - target_port_start + 1;
 
