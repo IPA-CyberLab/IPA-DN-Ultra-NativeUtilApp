@@ -552,6 +552,7 @@ void sslclientbench_test(UINT num, char** arg)
 volatile UINT udpbench_target_pps = 0;
 volatile UINT64 udpbench_total_packets = 0;
 volatile UINT udpbench_num_packets_per_wait = 0;
+volatile UINT udpbench_sleep_interval = 10;
 
 void udpbench_thread(THREAD* thread, void* param)
 {
@@ -855,6 +856,7 @@ void udpbench_test(UINT num, char** arg)
 
 	UINT64 last_tick = TickHighres64();
 	UINT64 last_pcount = udpbench_total_packets;
+	udpbench_sleep_interval = 10;
 
 	if (udpbench_target_pps != 0)
 	{
@@ -886,7 +888,30 @@ void udpbench_test(UINT num, char** arg)
 			}
 
 			udpbench_num_packets_per_wait = new_value;
-			Print("new_value = %u\n", new_value);
+
+			UINT new_value2 = udpbench_sleep_interval;
+			if (new_value == 1)
+			{
+				if (current_pps > udpbench_target_pps)
+				{
+					new_value *= 2;
+				}
+				else
+				{
+					new_value /= 2;
+				}
+			}
+			else
+			{
+				new_value2 = 10;
+			}
+
+			if (new_value2 < 10)
+			{
+				new_value2 = 10;
+			}
+
+			Print("new_value = %u   new_value2 = %u\n", new_value, new_value2);
 		}
 
 		last_tick = now;
