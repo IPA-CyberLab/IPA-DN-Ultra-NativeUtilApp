@@ -890,20 +890,14 @@ void udpbench_test(UINT num, char** arg)
 			udpbench_num_packets_per_wait = new_value;
 
 			UINT new_value2 = udpbench_sleep_interval;
-			if (new_value == 1)
+
+			if (current_pps > udpbench_target_pps)
 			{
-				if (current_pps > udpbench_target_pps)
-				{
-					new_value2 *= 2;
-				}
-				else
-				{
-					new_value2 /= 2;
-				}
+				new_value2 += 10;
 			}
 			else
 			{
-				new_value2 = 10;
+				new_value2 -= 10;
 			}
 
 			if (new_value2 < 10)
