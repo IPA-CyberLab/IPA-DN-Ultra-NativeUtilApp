@@ -911,6 +911,8 @@ void udpbench_test(UINT num, char** arg)
 				new_value2 = 10;
 			}
 
+			udpbench_sleep_interval = new_value2;
+
 			Print("new_value = %u   new_value2 = %u\n", new_value, new_value2);
 		}
 
