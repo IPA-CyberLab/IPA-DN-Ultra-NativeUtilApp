@@ -894,11 +894,11 @@ void udpbench_test(UINT num, char** arg)
 			{
 				if (current_pps > udpbench_target_pps)
 				{
-					new_value *= 2;
+					new_value2 *= 2;
 				}
 				else
 				{
-					new_value /= 2;
+					new_value2 /= 2;
 				}
 			}
 			else
