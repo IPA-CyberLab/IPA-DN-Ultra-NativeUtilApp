@@ -549,6 +549,9 @@ void sslclientbench_test(UINT num, char** arg)
 	}
 }
 
+volatile UINT udpbench_target_pps = 0;
+volatile UINT64 udpbench_total_packets = 0;
+
 void udpbench_thread(THREAD* thread, void* param)
 {
 #ifdef	UNIX_LINUX
@@ -669,8 +672,6 @@ void udpbench_thread(THREAD* thread, void* param)
 #endif	// UNIX_LINUX
 }
 
-volatile UINT udpbench_target_pps = 0;
-volatile UINT64 udpbench_total_packets = 0;
 
 void udpbench_test(UINT num, char** arg)
 {
