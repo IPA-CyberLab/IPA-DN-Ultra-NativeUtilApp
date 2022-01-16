@@ -679,7 +679,7 @@ void udpbench_thread(THREAD* thread, void* param)
 		{
 			if ((this_thread_loop_counts % (UINT64)udpbench_num_packets_per_wait) == 0)
 			{
-				SleepThread(10);
+				SleepThread(udpbench_sleep_interval);
 			}
 		}
 	}
