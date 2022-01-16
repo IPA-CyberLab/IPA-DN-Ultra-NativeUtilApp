@@ -865,14 +865,14 @@ void udpbench_test(UINT num, char** arg)
 
 	while (true)
 	{
-		SleepThread(1000);
+		SleepThread(100);
 
 		UINT64 current_pcount = udpbench_total_packets;
 		UINT64 now = TickHighres64();
 		UINT64 interval = now - last_tick;
 
 		UINT64 current_pps = (current_pcount - last_pcount) * 1000ULL / interval;
-		Print("Current PPS: %I64u kpps\n", current_pps / 100);
+		Print("Current PPS: %I64u kpps\n", current_pps / 1000);
 		if (udpbench_num_packets_per_wait != 0)
 		{
 			UINT new_value = udpbench_num_packets_per_wait;
