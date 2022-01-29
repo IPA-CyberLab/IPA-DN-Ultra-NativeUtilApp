@@ -549,6 +549,11 @@ void sslclientbench_test(UINT num, char** arg)
 	}
 }
 
+volatile UINT udpbench_target_pps = 0;
+volatile UINT64 udpbench_total_packets = 0;
+volatile UINT udpbench_num_packets_per_wait = 0;
+volatile UINT udpbench_sleep_interval = 10;
+
 void udpbench_thread(THREAD* thread, void* param)
 {
 #ifdef	UNIX_LINUX
@@ -638,6 +643,8 @@ void udpbench_thread(THREAD* thread, void* param)
 
 	InitAsyncSocket(s);
 
+	UINT64 this_thread_loop_counts = 0;
+
 	while (true)
 	{
 		if (st->rand_flag && is_ipv6 == false)
@@ -656,14 +663,29 @@ void udpbench_thread(THREAD* thread, void* param)
 		if (false)
 		{
 			sendto(socket, buf, size, 0, is_ipv6 ? (struct sockaddr*)&addr6 : (struct sockaddr*)&addr, is_ipv6 ? sizeof(addr6) : sizeof(addr));
+
+			udpbench_total_packets++;
 		}
 		else
 		{
 			int ret = sendmmsg(socket, msgvec, count, 0);
+
+			udpbench_total_packets += (UINT64)count;
+		}
+
+		this_thread_loop_counts++;
+
+		if (udpbench_num_packets_per_wait != 0)
+		{
+			if ((this_thread_loop_counts % (UINT64)udpbench_num_packets_per_wait) == 0)
+			{
+				SleepThread(udpbench_sleep_interval);
+			}
 		}
 	}
 #endif	// UNIX_LINUX
 }
+
 
 void udpbench_test(UINT num, char** arg)
 {
@@ -725,21 +747,42 @@ void udpbench_test(UINT num, char** arg)
 			char* ips = arg[i];
 			IP ip;
 
-			if (GetIP(&ip, ips) || GetIPEx(&ip, ips, true))
+			if (InStr(ips, ".") || InStr(ips, ":"))
 			{
-				if (ip_list == NULL)
+				if (GetIP(&ip, ips) || GetIPEx(&ip, ips, true))
 				{
-					ip_list = NewList(NULL);
-				}
+					if (ip_list == NULL)
+					{
+						ip_list = NewList(NULL);
+					}
 
-				Add(ip_list, Clone(&ip, sizeof(IP)));
+					Add(ip_list, Clone(&ip, sizeof(IP)));
+				}
+			}
+			else
+			{
+				break;
 			}
 		}
 	}
 
+	if (num >= 6)
+	{
+		if (EndWith(arg[5], "kpps"))
+		{
+			udpbench_target_pps = ToInt(arg[5]) * 1000;
+		}
+	}
+	else
+	{
+		udpbench_target_pps = 0;
+	}
+
+	udpbench_total_packets = 0;
+
 	if (IsEmptyStr(target_hostname) || target_port_start == 0 || size == 0)
 	{
-		Print("Usage: udpbench <hostname> <port>|<port_start:port_end> <packet_size> [dest_ip_rand_flag]\n");
+		Print("Usage: udpbench <hostname> <port>|<port_start:port_end> <packet_size> [dest_ip_rand_flag] [dest_ip_list] [123kpps]\n");
 		Print("       If packet_size = 36 then send dns query sample packet\n");
 		return;
 	}
@@ -779,6 +822,7 @@ void udpbench_test(UINT num, char** arg)
 	if (num_cpu >= 64) num_cpu = 64;
 
 	Print("Number of CPUs: %u\n", num_cpu);
+	Print("Target PPS: %u\n", udpbench_target_pps);
 
 	num_ports = target_port_end - target_port_start + 1;
 
@@ -810,7 +854,65 @@ void udpbench_test(UINT num, char** arg)
 		}
 	}
 
-	SleepThread(INFINITE);
+	UINT64 last_tick = TickHighres64();
+	UINT64 last_pcount = udpbench_total_packets;
+	udpbench_sleep_interval = 10;
+
+	if (udpbench_target_pps != 0)
+	{
+		udpbench_num_packets_per_wait = 32;
+	}
+
+	while (true)
+	{
+		SleepThread(100);
+
+		UINT64 current_pcount = udpbench_total_packets;
+		UINT64 now = TickHighres64();
+		UINT64 interval = now - last_tick;
+
+		UINT64 current_pps = (current_pcount - last_pcount) * 1000ULL / interval;
+		//Print("Current PPS: %I64u kpps\n", current_pps / 1000);
+		if (udpbench_num_packets_per_wait != 0)
+		{
+			UINT new_value = udpbench_num_packets_per_wait;
+
+			if (current_pps > udpbench_target_pps)
+			{
+				new_value /= 2;
+				if (new_value == 0) new_value = 1;
+			}
+			else
+			{
+				new_value++;
+			}
+
+			udpbench_num_packets_per_wait = new_value;
+
+			UINT new_value2 = udpbench_sleep_interval;
+
+			if (current_pps > udpbench_target_pps)
+			{
+				new_value2 += 20;
+			}
+			else
+			{
+				new_value2 -= 10;
+			}
+
+			if (new_value2 < 10)
+			{
+				new_value2 = 10;
+			}
+
+			udpbench_sleep_interval = new_value2;
+
+			//Print("new_value = %u   new_value2 = %u\n", new_value, new_value2);
+		}
+
+		last_tick = now;
+		last_pcount = current_pcount;
+	}
 }
 
 void udprand_test(UINT num, char** arg)
