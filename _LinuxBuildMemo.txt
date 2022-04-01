@@ -29,4 +29,49 @@ git clone  --recursive git@github.com:IPA-CyberLab/IPA-DN-Ultra-NativeUtilApp.gi
 
 
 
+###### バイナリのビルドとアップロード (ARM64) dn-lxdpi4-test1
+
+en
+
+cd ~/
+rm -fr ~/build_IPA-DN-Ultra-NativeUtilApp/
+mkdir -p ~/build_IPA-DN-Ultra-NativeUtilApp/
+cd ~/build_IPA-DN-Ultra-NativeUtilApp/
+
+git clone  --recursive git@github.com:IPA-CyberLab/IPA-DN-Ultra-NativeUtilApp.git
+
+(cd ~/build_IPA-DN-Ultra-NativeUtilApp/IPA-DN-Ultra-NativeUtilApp/ && (cd $(git rev-parse --show-toplevel) && git pull origin main && git submodule update --init --recursive)) && cd ~/build_IPA-DN-Ultra-NativeUtilApp/IPA-DN-Ultra-NativeUtilApp/src/ && make -j 10 && bin/NativeUtilApp
+
+cd ~/build_IPA-DN-Ultra-NativeUtilApp/IPA-DN-Ultra-NativeUtilApp/src/
+
+mv bin Binary-IPA-DN-Ultra-NativeUtilApp
+
+cp ~/build_IPA-DN-Ultra-NativeUtilApp/IPA-DN-Ultra-NativeUtilApp/submodules/IPA-DN-Ultra/src/bin/hamcore/*.stb ~/build_IPA-DN-Ultra-NativeUtilApp/IPA-DN-Ultra-NativeUtilApp/src/Binary-IPA-DN-Ultra-NativeUtilApp/hamcore/
+
+cp ~/build_IPA-DN-Ultra-NativeUtilApp/IPA-DN-Ultra-NativeUtilApp/submodules/IPA-DN-Ultra/src/bin/hamcore/*.config ~/build_IPA-DN-Ultra-NativeUtilApp/IPA-DN-Ultra-NativeUtilApp/src/Binary-IPA-DN-Ultra-NativeUtilApp/hamcore/
+
+cp ~/build_IPA-DN-Ultra-NativeUtilApp/IPA-DN-Ultra-NativeUtilApp/submodules/IPA-DN-Ultra/src/bin/hamcore/*.txt ~/build_IPA-DN-Ultra-NativeUtilApp/IPA-DN-Ultra-NativeUtilApp/src/Binary-IPA-DN-Ultra-NativeUtilApp/hamcore/
+
+cd ~/build_IPA-DN-Ultra-NativeUtilApp/IPA-DN-Ultra-NativeUtilApp/src/
+
+tar czvf IPA-DN-Ultra-NativeUtilApp_$(uname -m).tar.gz Binary-IPA-DN-Ultra-NativeUtilApp
+
+curl https://lts.dn.ipantt.net/u/210328_001_public_junks_71989/XXXXXXXXXXXX/  -k -f -F "json=false" -F "getfile=true" -F "getdir=false" -F file=@IPA-DN-Ultra-NativeUtilApp_$(uname -m).tar.gz
+
+# アップロード結果 (2022/04/01):
+# http://lts.dn.ipantt.net/d/210328_001_public_junks_71989/20220401_165939_2401.af80.8016..182_dn-lxdpi4-test1.v6.open.ad.jp_ipa-dn-ultra-nativeutilapp_aarch64_tar_gz/IPA-DN-Ultra-NativeUtilApp_aarch64.tar.gz
+
+
+#### 他の RasPi での利用法
+
+cd ~/
+
+curl http://lts.dn.ipantt.net/d/210328_001_public_junks_71989/20220401_165939_2401.af80.8016..182_dn-lxdpi4-test1.v6.open.ad.jp_ipa-dn-ultra-nativeutilapp_aarch64_tar_gz/IPA-DN-Ultra-NativeUtilApp_aarch64.tar.gz -o ~/IPA-DN-Ultra-NativeUtilApp_aarch64.tar.gz
+
+cd ~/
+
+tar xzvf IPA-DN-Ultra-NativeUtilApp_aarch64.tar.gz
+
+~/Binary-IPA-DN-Ultra-NativeUtilApp/NativeUtilApp
+
 
