@@ -475,6 +475,62 @@ void sslclientbench_thread(THREAD* thread, void* param)
 	}
 }
 
+void writelargefile_test(UINT num, char **arg)
+{
+	if (num < 1)
+	{
+		Print("Usage: writelargefile <filename>\n");
+		return;
+	}
+
+	char dir[MAX_PATH] = CLEAN;
+
+	GetDirNameFromFilePath(dir, sizeof(dir), arg[0]);
+
+	MakeDirEx(dir);
+
+	IO *io = FileCreate(arg[0]);
+	if (io == NULL)
+	{
+		Print("File create failed.\n");
+		return;
+	}
+
+	UINT bufsize = 10000000;
+	UCHAR *buf = Malloc(bufsize);
+	Rand(buf, bufsize);
+
+	UINT64 total_size = 0;
+
+	UINT64 lastnow = 0;
+
+	while (true)
+	{
+		UINT64 now = Tick64();
+
+		if (now >= (lastnow + 1000ULL) || lastnow == 0)
+		{
+			lastnow = now;
+
+			char str3[128];
+			ToStr3(str3, sizeof(str3), total_size);
+
+			Print("Written: %s bytes\n", str3);
+		}
+
+		if (FileWrite(io, buf, bufsize) == false)
+		{
+			break;
+		}
+
+		FileFlush(io);
+
+		total_size += (UINT64)bufsize;
+	}
+
+	FileClose(io);
+}
+
 void sslclientbench_test(UINT num, char** arg)
 {
 	OSRestorePriority();
@@ -978,6 +1034,8 @@ TEST_LIST test_list[] =
 
 	{"sslclientbench", sslclientbench_test},
 	{"scb", sslclientbench_test},
+
+	{"writelargefile", writelargefile_test},
 };
 
 // テスト関数
